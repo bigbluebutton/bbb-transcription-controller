@@ -1,0 +1,33 @@
+log:
+  filename: log
+  level: info
+  stdout: true
+
+redis:
+  host: 0.0.0.0
+  port: "6379"
+  # password: foobared
+  publishChannel: 'from-akka-apps-redis-channel'
+
+# in mhz
+sampleRate: '16'
+
+# vosk, whispering, deepspeech, google
+transcriptionServer: 'vosk'
+
+vosk:
+  startMessage: '{"config": { "sample_rate": ""} }'
+  endMessage: '{"eof" : 1 }'
+  servers:
+    en-US: wss://lucas.elos.dev/vosk
+
+whispering:
+  startMessage: '{"config": { "sample_rate": ""} }'
+  endMessage: '{"eof" : 1 }'
+  servers:
+    en-US: wss://lucas.elos.dev/whispering
+
+freeswitch:
+  ip: 0.0.0.0
+  port: 8021
+  password:
