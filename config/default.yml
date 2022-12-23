@@ -12,14 +12,14 @@ redis:
 # in mhz
 sampleRate: '16'
 
-# vosk, whispering, deepspeech, google
-transcriptionServer: 'vosk'
-
 vosk:
   startMessage: '{"config": { "sample_rate": ""} }'
   endMessage: '{"eof" : 1 }'
   servers:
-    en-US: wss://lucas.elos.dev/vosk
+    en-US: wss://lucas.elos.dev/voskEN
+    es-ES: wss://lucas.elos.dev/voskES
+    pt-BR: wss://lucas.elos.dev/voskPT
+    fr-FR: wss://lucas.elos.dev/voskFR
 
 whispering:
   startMessage: '{"config": { "sample_rate": ""} }'

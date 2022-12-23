@@ -28,16 +28,17 @@ bbbGW.on('MeetingCreatedEvtMsg', (header, payload) => {
   setVoiceToMeeting(payload.props.voiceProp.voiceConf, payload.props.meetingProp.intId);
 });
 
-let currentLocale = 'en-US';
-//const getLocale = (, cb) => {
-//  bbbGW.getKey(REDIS_LOCALE + '_' + voiceConf, cb);
-//}
+bbbGW.on('UserSpeechLocaleChangedEvtMsg', (header, payload) => {
+  const { meetingId, userId } = header;
+  const { provider, locale } = payload;
 
-//const setLocale = () => {
-//
-//}
+  console.log("Speech changed", userId, provider, locale);
 
-const REDIS_VOICE_ID_KEY = 'bbb-trascription-manager_voiceToMeeting';
+  setProvider(userId, provider);
+  setUserLocale(userId, locale);
+});
+
+const REDIS_VOICE_ID_KEY = 'bbb-transcription-manager_voiceToMeeting';
 const getVoiceToMeeting = (voiceConf, cb) => {
   bbbGW.getKey(REDIS_VOICE_ID_KEY + '_' + voiceConf, cb);
 };
@@ -46,21 +47,41 @@ const setVoiceToMeeting = (voiceConf, meetingId, cb) => {
   bbbGW.setKey(REDIS_VOICE_ID_KEY + '_' + voiceConf, meetingId, cb);
 };
 
+const REDIS_USER_LOCALE_KEY = 'bbb-transcription-manager_locale';
+const getUserLocale = (userId, cb) => {
+  bbbGW.getKey(REDIS_USER_LOCALE_KEY + '_' + userId, cb);
+};
+
+const setUserLocale = (userId, locale, cb) => {
+  bbbGW.setKey(REDIS_USER_LOCALE_KEY + '_' + userId, locale, cb);
+};
+
+const REDIS_TRANSCRIPTION_PROVIDER_KEY = 'bbb-transcription-manager_provider';
+const getProvider = (userId, cb) => {
+  bbbGW.getKey(REDIS_TRANSCRIPTION_PROVIDER_KEY + '_' + userId, cb);
+};
+
+const setProvider = (userId, provider, cb) => {
+  bbbGW.setKey(REDIS_TRANSCRIPTION_PROVIDER_KEY + '_' + userId, provider, cb);
+};
+
 const EslWrapper = require('./lib/esl-wrapper');
 const eslWrapper = new EslWrapper();
 
 const SAMPLE_RATE = config.get("sampleRate");
-const TRANSCRIPTION_SERVER = config.get("transcriptionServer");
 
-const INITIAL_MESSAGE = JSON.parse(config.get(TRANSCRIPTION_SERVER +'.startMessage'));
-const FINAL_MESSAGE = JSON.parse(config.get(TRANSCRIPTION_SERVER +'.endMessage'));
+const getServerUrl = (userId, cb) => {
 
-if (TRANSCRIPTION_SERVER === 'vosk') {
-  INITIAL_MESSAGE.config.sample_rate = SAMPLE_RATE + '000';
-}
+  getProvider(userId, (err, provider) => {
+    getUserLocale(userId, (err, locale) => {
 
-const getServerUrl = (locale) => {
-  return config.get(TRANSCRIPTION_SERVER + '.servers.' + locale);
+      if (provider && provider != '' && locale && locale != '') {
+        return cb(config.get(provider + '.servers.' + locale), provider);
+      } else {
+        return cb(null);
+      }
+    });
+  });
 };
 
 const makeMessage = (meetingId, userId, locale, transcript, result) => {
@@ -92,30 +113,51 @@ const makeMessage = (meetingId, userId, locale, transcript, result) => {
   };
 };
 
-const startAudioFork = (channelId) => {
-  const serverUrl = getServerUrl(currentLocale);
+const startAudioFork = (channelId, userId) => {
+  getServerUrl(userId, (serverUrl, provider) => {
+    if (!serverUrl) {
+      Logger.warn("No provider set, not transcribing");
+      return;
+    }
 
-  if (socketIsStopping[channelId]) {
-    socketIsStopping[channelId] = false;
-  }
+    const initialMessage = JSON.parse(config.get(provider + '.startMessage'));
+    if (provider === 'vosk') {
+      initialMessage.config.sample_rate = SAMPLE_RATE + '000';
+    }
 
-  if (!socketStatus[channelId]) {
-    eslWrapper._executeCommand(`uuid_audio_fork ${channelId} start ${serverUrl} mono ${SAMPLE_RATE}k ${JSON.stringify(INITIAL_MESSAGE)}`);
-   socketStatus[channelId] = true;
-  }
-};
-
-const stopAudioFork = (channelId) => {
-  if (socketStatus[channelId]) {
-    if (!socketIsStopping[channelId]) {
-      socketIsStopping[channelId] = true;
-    } else {
-      eslWrapper._executeCommand(`uuid_audio_fork ${channelId} stop ${JSON.stringify(FINAL_MESSAGE)}`);
-
-      socketStatus[channelId] = false;
+    if (socketIsStopping[channelId]) {
       socketIsStopping[channelId] = false;
     }
-  }
+
+    if (!socketStatus[channelId]) {
+      eslWrapper._executeCommand(`uuid_audio_fork ${channelId} start ${serverUrl} mono ${SAMPLE_RATE}k ${JSON.stringify(initialMessage)}`);
+     socketStatus[channelId] = true;
+    }
+  });
+};
+
+const stopAudioFork = (channelId, userId) => {
+  getProvider(userId, (err, provider) => {
+
+//    if (!provider) {
+//      Logger.warn("No provider set, not stopping transcription");
+//      return;
+//    }
+
+    //const endMessage = JSON.parse(config.get(provider + '.endMessage'));
+    const endMessage = JSON.parse(config.get('vosk.endMessage'));
+
+    if (socketStatus[channelId]) {
+      if (!socketIsStopping[channelId]) {
+        socketIsStopping[channelId] = true;
+      } else {
+        eslWrapper._executeCommand(`uuid_audio_fork ${channelId} stop ${JSON.stringify(endMessage)}`);
+
+        socketStatus[channelId] = false;
+        socketIsStopping[channelId] = false;
+      }
+    }
+  });
 };
 
 let prev_transcription = '';
@@ -125,30 +167,32 @@ eslWrapper.onModAudioForkJSON((msg) => {
   getVoiceToMeeting(msg.getHeader('variable_conference_name'), (err, meetingId) => {
 
     const userId = msg.getHeader('Caller-Username').split('_').slice(0,2).join('_');
-    const ignore = [ '', 'the']
+    getUserLocale(userId, (err, locale) => {
+      const ignore = [ '', 'the']
 
-    const body = tryParseJson(msg.body);
-    const transcription = body.text || body.partial;
+      const body = tryParseJson(msg.body);
+      const transcription = body.text || body.partial;
 
-    if (body.text) {
-      Logger.info(`Final text is: ${body.text}`);
-    }
+      if (body.text) {
+        Logger.info(`Final text is: ${body.text}`);
+      }
 
-    if ((ignore.includes(transcription) || transcription == prev_transcription) && !body.text) {
-      return;
-    }
+      if ((ignore.includes(transcription) || transcription == prev_transcription) && !body.text) {
+        return;
+      }
 
-    prev_transcription = transcription;
-    const result = Boolean(body.text);
-    const payload = makeMessage(meetingId, userId, currentLocale, transcription, result);
+      prev_transcription = transcription;
+      const result = Boolean(body.text);
+      const payload = makeMessage(meetingId, userId, locale, transcription, result);
 
-    bbbGW.publish(JSON.stringify(payload), C.TO_AKKA_APPS_CHAN_2x);
+      bbbGW.publish(JSON.stringify(payload), C.TO_AKKA_APPS_CHAN_2x);
 
-    if (socketIsStopping[channelId] && result) {
-      stopAudioFork(channelId);
-    }
-
+      if (socketIsStopping[channelId] && result) {
+        stopAudioFork(channelId);
+      }
   });
+
+    });
 });
 
 const handleChannelAnswer = (channelId, callId) => {
@@ -163,14 +207,14 @@ const handleFloorChanged = (roomId, newFloorMemberId) => {
   Logger.info(`FS: floor changed ${roomId} ${newFloorMemberId}`);
 }
 
-const handleStartTalking = (channelId) => {
-  Logger.info(`FS: Start talking ${channelId}`);
-  startAudioFork(channelId);
+const handleStartTalking = (channelId, userId) => {
+  Logger.info(`FS: Start talking ${channelId} userId: ${userId}`);
+  startAudioFork(channelId, userId);
 }
 
-const handleStopTalking = (channelId) => {
-  Logger.info('FS: Stop Talking', channelId);
-  stopAudioFork(channelId);
+const handleStopTalking = (channelId, userId) => {
+  Logger.info(`FS: Stop Talking ${channelId} userId: ${userId}`);
+  stopAudioFork(channelId, userId);
 } 
 
 eslWrapper.on(EslWrapper.EVENTS.CHANNEL_ANSWER, handleChannelAnswer);
@@ -181,14 +225,4 @@ eslWrapper.on(EslWrapper.EVENTS.STOP_TALKING, handleStopTalking);
 eslWrapper.on(EslWrapper.EVENTS.MUTED, handleStopTalking);
 
 eslWrapper._connect();
-
-const http = require('http');
-
-const requestListener = function(req, res) {
-  res.writeHead(200);
-  res.end('fs');
-};
-
-const server = http.createServer(requestListener);
-server.listen(8989);
 
