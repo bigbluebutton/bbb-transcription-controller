@@ -10,7 +10,17 @@ redis:
   publishChannel: 'from-akka-apps-redis-channel'
 
 # in mhz
+# Valid values are '16' and '8', but 8 seems to be
+# too low to get accurate transcriptions
 sampleRate: '16'
+
+# Each transcription server has its own config section
+# startMessage and endMessage are the messages sent whenever mod_audio_fork's
+# connection starts/ends
+
+# servers/server registers transcription server websocket URLs
+# I've configured my servers using an nginx reverse proxy for each
+# language, see the example below
 
 vosk:
   startMessage: '{"config": { "sample_rate": ""} }'
@@ -21,11 +31,15 @@ vosk:
     pt-BR: wss://lucas.elos.dev/voskPT
     fr-FR: wss://lucas.elos.dev/voskFR
 
+# TODO: whispering is still not supported, need to get
+# the start/end messages right
+
 whispering:
   startMessage: '{"config": { "sample_rate": ""} }'
   endMessage: '{"eof" : 1 }'
-  servers:
-    en-US: wss://lucas.elos.dev/whispering
+  server:  wss://lucas.elos.dev/whispering
+
+# Setup freeswitch credentials to make ESL work
 
 freeswitch:
   ip: 0.0.0.0
