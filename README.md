@@ -6,6 +6,13 @@ This node.js app listens to ESL events from Freeswitch and uses `mod_audio_fork`
 to send the audio data into a voice transcription server. The returning transcription
 is then sent into Redis and can be displayed by the HTML5 client
 
+## Running
+
+    npm install
+
+
+    node app.js
+
 ## Configuration
 
 The configuration file has comments explaining each of its parts
