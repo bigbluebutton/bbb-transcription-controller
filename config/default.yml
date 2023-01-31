@@ -26,10 +26,10 @@ vosk:
   startMessage: '{"config": { "sample_rate": ""} }'
   endMessage: '{"eof" : 1 }'
   servers:
-    en-US: wss://lucas.elos.dev/voskEN
-    es-ES: wss://lucas.elos.dev/voskES
-    pt-BR: wss://lucas.elos.dev/voskPT
-    fr-FR: wss://lucas.elos.dev/voskFR
+    en-US: wss://HOST/voskEN
+    es-ES: wss://HOST/voskES
+    pt-BR: wss://HOST/voskPT
+    fr-FR: wss://HOST/voskFR
 
 # TODO: whispering is still not supported, need to get
 # the start/end messages right
@@ -37,7 +37,7 @@ vosk:
 whispering:
   startMessage: '{"config": { "sample_rate": ""} }'
   endMessage: '{"eof" : 1 }'
-  server:  wss://lucas.elos.dev/whispering
+  server:  wss://HOST/whispering
 
 # Setup freeswitch credentials to make ESL work
 
