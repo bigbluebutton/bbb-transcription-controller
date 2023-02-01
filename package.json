@@ -1,4 +1,27 @@
 {
+  "name": "bbb-transcription-controller",
+  "version": "0.0.1",
+  "description": "BigBlueButton's Transcription Controller",
+  "engines": {
+    "node": ">=16"
+  },
+  "scripts": {
+    "start": "node app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mconf/bbb-transcription-controller.git"
+  },
+  "keywords": [
+    "bigbluebutton",
+    "cc",
+    "transcription",
+    "vosk"
+  ],
+  "bugs": {
+    "url": "https://github.com/mconf/bbb-transcription-controller/issues"
+  },
+  "homepage": "https://github.com/mconf/bbb-transcription-controller#readme",
   "dependencies": {
     "config": "^3.3.8",
     "esl": "^10.0.0",
