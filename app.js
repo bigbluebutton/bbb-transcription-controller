@@ -84,7 +84,7 @@ const getServerUrl = (userId, cb) => {
   });
 };
 
-const makeMessage = (meetingId, userId, locale, transcript, result) => {
+const makeMessage = (meetingId, userId, locale, transcript) => {
   return {
     envelope: {
       name: 'UpdateTranscriptPubMsg',
@@ -107,7 +107,6 @@ const makeMessage = (meetingId, userId, locale, transcript, result) => {
         text: '',
         transcript,
         locale,
-        result,
       },
     }
   };
@@ -183,7 +182,7 @@ eslWrapper.onModAudioForkJSON((msg) => {
 
       prev_transcription = transcription;
       const result = Boolean(body.text);
-      const payload = makeMessage(meetingId, userId, locale, transcription, result);
+      const payload = makeMessage(meetingId, userId, locale, transcription);
 
       bbbGW.publish(JSON.stringify(payload), C.TO_AKKA_APPS_CHAN_2x);
 
