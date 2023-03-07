@@ -75,7 +75,7 @@ const getServerUrl = (userId, cb) => {
   getProvider(userId, (err, provider) => {
     getUserLocale(userId, (err, locale) => {
 
-      if (provider && provider != '' && locale && locale != '') {
+      if (provider && provider != '' && config.has(provider)  && locale && locale != '') {
         return cb(config.get(provider + '.servers.' + locale), provider);
       } else {
         return cb(null);
