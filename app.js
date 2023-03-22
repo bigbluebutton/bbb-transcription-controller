@@ -139,13 +139,14 @@ const startAudioFork = (channelId, userId) => {
 const stopAudioFork = (channelId, userId) => {
   getProvider(userId, (err, provider) => {
 
-//    if (!provider) {
-//      Logger.warn("No provider set, not stopping transcription");
-//      return;
-//    }
+    let endMessage;
 
-    //const endMessage = JSON.parse(config.get(provider + '.endMessage'));
-    const endMessage = JSON.parse(config.get('vosk.endMessage'));
+    if (!provider) {
+      Logger.warn("No provider set, not stopping transcription");
+      endMessage = JSON.parse(config.get('vosk.endMessage'));
+    } else {
+      endMessage = JSON.parse(config.get(provider + '.endMessage'));
+    }
 
     if (socketStatus[channelId]) {
       if (!socketIsStopping[channelId]) {
