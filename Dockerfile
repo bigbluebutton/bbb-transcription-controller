@@ -2,7 +2,7 @@
 # To build: docker build -t bigbluebutton/transcription-controller .
 # To run: docker run --rm --name transcription-controller -v $(pwd)/config/production.yml:/app/config/production.yml bigbluebutton/transcription-controller
 
-FROM node:14-alpine
+FROM node:18-alpine
 
 RUN apk update && apk add git
 
