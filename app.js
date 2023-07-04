@@ -8,6 +8,27 @@ function tryParseJson(str) {
   }
 }
 
+const { fork } = require('child_process');
+const fs = require('fs');
+
+let GLADIA_PROXY_PROCESS;
+const runGladiaProxy = () => {
+  const outputFile = 'gladia-proxy.log';
+
+  const outputStream = fs.createWriteStream(outputFile);
+
+  outputStream.on('open', () => {
+    // Spawn the child process
+    const childProcess = fork('gladia-proxy.js', [], {
+      stdio: [null, outputStream, outputStream, 'ipc']
+    });
+  });
+
+  console.log("Run Gladia proxy");
+}
+
+GLADIA_PROXY_PROCESS = runGladiaProxy();
+
 const config = require('config');
 const EventEmitter = require('events').EventEmitter;
 const Logger = require('./lib/logger');
@@ -32,7 +53,7 @@ bbbGW.on('UserSpeechLocaleChangedEvtMsg', (header, payload) => {
   const { meetingId, userId } = header;
   const { provider, locale } = payload;
 
-  console.log("Speech changed", userId, provider, locale);
+  Logger.info("Speech changed " + userId + ' ' + provider + ' ' + locale);
 
   setProvider(userId, provider);
   setUserLocale(userId, locale);
@@ -76,7 +97,9 @@ const getServerUrl = (userId, cb) => {
     getUserLocale(userId, (err, locale) => {
 
       if (provider && provider != '' && locale && locale != '') {
-        return cb(config.get(provider + '.servers.' + locale), provider);
+        const serverUrl = config.get(provider === 'gladia' ? 'gladia.server' : provider + '.servers.' + locale);
+
+        return cb(serverUrl, provider, locale);
       } else {
         return cb(null);
       }
@@ -114,15 +137,21 @@ const makeMessage = (meetingId, userId, locale, transcript, result) => {
 };
 
 const startAudioFork = (channelId, userId) => {
-  getServerUrl(userId, (serverUrl, provider) => {
+  getServerUrl(userId, (serverUrl, provider, language) => {
     if (!serverUrl) {
       Logger.warn("No provider set, not transcribing");
       return;
     }
 
     const initialMessage = JSON.parse(config.get(provider + '.startMessage'));
+
     if (provider === 'vosk') {
       initialMessage.config.sample_rate = SAMPLE_RATE + '000';
+    }
+
+    if (provider === 'gladia') {
+      initialMessage.sample_rate = parseInt(SAMPLE_RATE + '000')
+      initialMessage.language = language.slice(0,2);
     }
 
     if (socketIsStopping[channelId]) {
@@ -130,8 +159,11 @@ const startAudioFork = (channelId, userId) => {
     }
 
     if (!socketStatus[channelId]) {
+      if (provider === 'gladia') {
+      }
+
       eslWrapper._executeCommand(`uuid_audio_fork ${channelId} start ${serverUrl} mono ${SAMPLE_RATE}k ${JSON.stringify(initialMessage)}`);
-     socketStatus[channelId] = true;
+      socketStatus[channelId] = true;
     }
   });
 };
@@ -139,18 +171,13 @@ const startAudioFork = (channelId, userId) => {
 const stopAudioFork = (channelId, userId) => {
   getProvider(userId, (err, provider) => {
 
-//    if (!provider) {
-//      Logger.warn("No provider set, not stopping transcription");
-//      return;
-//    }
-
-    //const endMessage = JSON.parse(config.get(provider + '.endMessage'));
     const endMessage = JSON.parse(config.get('vosk.endMessage'));
 
     if (socketStatus[channelId]) {
       if (!socketIsStopping[channelId]) {
         socketIsStopping[channelId] = true;
       } else {
+
         eslWrapper._executeCommand(`uuid_audio_fork ${channelId} stop ${JSON.stringify(endMessage)}`);
 
         socketStatus[channelId] = false;
@@ -190,9 +217,8 @@ eslWrapper.onModAudioForkJSON((msg) => {
       if (socketIsStopping[channelId] && result) {
         stopAudioFork(channelId);
       }
-  });
-
     });
+  });
 });
 
 const handleChannelAnswer = (channelId, callId) => {

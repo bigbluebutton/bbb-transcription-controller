@@ -23,7 +23,7 @@ sampleRate: '16'
 # language, see the example below
 
 vosk:
-  startMessage: '{"config": { "sample_rate": ""} }'
+  startMessage: '{"config": { "sample_rate": "" } }'
   endMessage: '{"eof" : 1 }'
   servers:
     en-US: wss://lucas.elos.dev/voskEN
@@ -33,6 +33,11 @@ vosk:
 
 # TODO: whispering is still not supported, need to get
 # the start/end messages right
+
+gladia:
+  startMessage: '{"x_gladia_key": "", "sample_rate": 0, "bit_depth": 16, "model_type": "accurate" }'
+  endMessage: '{}'
+  server: ws://localhost:8777
 
 whispering:
   startMessage: '{"config": { "sample_rate": ""} }'
