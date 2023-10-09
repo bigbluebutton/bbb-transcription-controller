@@ -2,6 +2,9 @@ const http = require('http');
 const url = require('url');
 const WebSocket = require('ws');
 
+const MIN_PARTIAL_DURATION = 3;
+const LANGUAGE_MANUAL = true;
+
 function tryParseJson(str) {
   try {
     return JSON.parse(str);
@@ -12,7 +15,6 @@ function tryParseJson(str) {
 
 // Create a new WebSocket connection to the external URL for each client
 const externalUrl = 'wss://api.gladia.io/audio/text/audio-transcription';
-//const externalUrl = 'wss://lucas.elos.dev/websocket-echo';
 
 const server = http.createServer();
 const wss = new WebSocket.Server({ server });
@@ -25,8 +27,13 @@ const fixInitialMessage = (message) => {
   const locales = {'en': 'english', 'es': 'spanish', 'fr': 'french', 'pt': 'portuguese'};
   const obj = tryParseJson(message);
 
+  // If message has a language field either correct the name or remove it
   if (obj.language) {
-    obj.language = locales[obj.language];
+    if (LANGUAGE_MANUAL) {
+      obj.language = locales[obj.language];
+    } else {
+      delete obj.language;
+    }
   }
 
   return JSON.stringify(obj);
@@ -37,14 +44,19 @@ const fixResultMessage = (message) => {
   const newMsg = {};
 
   if (obj.type) {
-    if (obj.type == "partial") {
+    if (obj.type == "partial" && obj.duration >= MIN_PARTIAL_DURATION) {
       newMsg.partial = obj.transcription;
-    } else {
+      newMsg.locale = obj.language;
+    } else if(obj.type == "final") {
       newMsg.text = obj.transcription;
+      newMsg.locale = obj.language;
+    } else {
+      console.log(`Skipping small partial message: ${JSON.stringify(obj)}`);
+      return null;
     }
   } else {
     console.error(obj);
-    return message;
+    return null;
   }
 
   return JSON.stringify(newMsg);
@@ -56,22 +68,19 @@ wss.on('connection', function connection(ws, req) {
 
     ws.firstMessage = true;
     ws.on('open', function open(s) {
-        console.log('connected');
+        console.log('New mod_audio_fork connection');
     });
 
     ws.on('close', function close() {
         ws.firstMessage = false;
-        console.log('disconnected');
+        console.log('mod_audio_fork disconnected');
     });
 
-    let lastTime = Date.now()
     ws.on('message', function incoming(message) {
-        console.log(Date.now() - lastTime + 'ms', message.length);
-        lastTime = Date.now()
         if (ws.firstMessage) {
             ws.firstMessage = false;
-            console.log('received: %s', message);
             message = fixInitialMessage(message);
+            console.log('received: %s', message);
         } else {
             message = JSON.stringify({ "frames": message.toString('base64') });
         }
@@ -90,7 +99,6 @@ wss.on('connection', function connection(ws, req) {
     ws.externalWs = new WebSocket(externalUrl);
 
     ws.externalWs.on('open', function() {
-      console.log("Finally open");
       for (m in queue) {
         ws.externalWs.send(queue[m]);
       }
@@ -103,7 +111,10 @@ wss.on('connection', function connection(ws, req) {
 
         // Reply to the specific client WebSocket
         if (ws.readyState === WebSocket.OPEN) {
-          ws.send(fixResultMessage(message));
+          let newMsg = fixResultMessage(message);
+          if (newMsg) {
+            ws.send(newMsg);
+          }
         }
     });
 });
