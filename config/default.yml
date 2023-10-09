@@ -9,6 +9,8 @@ redis:
   # password: foobared
   publishChannel: 'from-akka-apps-redis-channel'
 
+includePartialResults: true
+
 # in mhz
 # Valid values are '16' and '8', but 8 seems to be
 # too low to get accurate transcriptions

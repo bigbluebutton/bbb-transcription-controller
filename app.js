@@ -91,6 +91,8 @@ const eslWrapper = new EslWrapper();
 
 const SAMPLE_RATE = config.get("sampleRate");
 
+const INCLUDE_PARTIAL_RESULTS = config.get("includePartialResults");
+
 const getServerUrl = (userId, cb) => {
 
   getProvider(userId, (err, provider) => {
