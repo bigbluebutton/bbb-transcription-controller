@@ -220,8 +220,17 @@ eslWrapper.onModAudioForkJSON((msg) => {
   });
 });
 
-const handleChannelAnswer = (channelId, callId) => {
-  Logger.info(`FS: Associating channel ${channelId} ${callId}`);
+eslWrapper.onModAudioForkDisconnect((msg, channelId, userId) => {
+  Logger.info(`mod_audio_fork connection dropped ${channelId} ${userId}`);
+
+  socketStatus[channelId] = false;
+  socketIsStopping[channelId] = false;
+  setTimeout(() => { startAudioFork(channelId, userId) }, 2000);
+});
+
+const handleChannelAnswer = (channelId, callId, userId) => {
+  Logger.info(`FS: Associating channel ${channelId} ${callId} userId: ${userId}`);
+  startAudioFork(channelId, userId);
 }
 
 const handleChannelHangup = (channelId, callId) => {
