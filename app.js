@@ -1,13 +1,8 @@
 'use strict'
 
-function tryParseJson(str) {
-  try {
-    return JSON.parse(str);
-  } catch (ex) {
-    return {};
-  }
-}
+const Logger = require('./lib/logger');
 
+const config = require('config');
 const { fork } = require('child_process');
 const fs = require('fs');
 
@@ -19,21 +14,25 @@ const runGladiaProxy = () => {
 
   outputStream.on('open', () => {
     // Spawn the child process
-    const childProcess = fork('gladia-proxy.js', [], {
+    GLADIA_PROXY_PROCESS = fork('gladia-proxy.js', [], {
       stdio: [null, outputStream, outputStream, 'ipc']
+    });
+
+    GLADIA_PROXY_PROCESS.on('exit', (code, signal) => {
+      Logger.info(`Closing Gladia proxy code: ${code} signal: ${signal}`);
     });
   });
 
-  console.log("Run Gladia proxy");
+  Logger.info("Starting Gladia proxy");
 }
 
-GLADIA_PROXY_PROCESS = runGladiaProxy();
+if (config.get('gladia.proxy.enabled')) {
+  runGladiaProxy();
+}
 
-const config = require('config');
+const { tryParseJSON }  = require('./lib/utils');
+
 const EventEmitter = require('events').EventEmitter;
-const Logger = require('./lib/logger');
-const LOG_PREFIX = "[bbb-transcript-manager]";
-
 const C = require('./lib/Constants');
 const BigBlueButtonGW = require('./lib/bbb-gw');
 
@@ -161,9 +160,6 @@ const startAudioFork = (channelId, userId) => {
     }
 
     if (!socketStatus[channelId]) {
-      if (provider === 'gladia') {
-      }
-
       eslWrapper._executeCommand(`uuid_audio_fork ${channelId} start ${serverUrl} mono ${SAMPLE_RATE}k ${JSON.stringify(initialMessage)}`);
       socketStatus[channelId] = true;
     }
@@ -171,22 +167,18 @@ const startAudioFork = (channelId, userId) => {
 };
 
 const stopAudioFork = (channelId, userId) => {
-  getProvider(userId, (err, provider) => {
-
     const endMessage = JSON.parse(config.get('vosk.endMessage'));
 
     if (socketStatus[channelId]) {
       if (!socketIsStopping[channelId]) {
         socketIsStopping[channelId] = true;
       } else {
-
         eslWrapper._executeCommand(`uuid_audio_fork ${channelId} stop ${JSON.stringify(endMessage)}`);
 
         socketStatus[channelId] = false;
         socketIsStopping[channelId] = false;
       }
     }
-  });
 };
 
 let prev_transcription = '';
@@ -199,20 +191,25 @@ eslWrapper.onModAudioForkJSON((msg) => {
     getUserLocale(userId, (err, locale) => {
       const ignore = [ '', 'the']
 
-      const body = tryParseJson(msg.body);
+      const body = tryParseJSON(msg.body);
       const transcription = body.text || body.partial;
 
-      if (body.text) {
-        Logger.info(`Final text is: ${body.text}`);
+      if (body.partial && !INCLUDE_PARTIAL_RESULTS) {
+        Logger.debug('Discard partial utterance', body.partial);
+        return;
       }
 
       if ((ignore.includes(transcription) || transcription == prev_transcription) && !body.text) {
         return;
       }
 
+      if (body.text) {
+        Logger.info(`Final text is: ${body.text}`);
+      }
+
       prev_transcription = transcription;
       const result = Boolean(body.text);
-      const payload = makeMessage(meetingId, userId, locale, transcription, result);
+      const payload = makeMessage(meetingId, userId, body.locale || locale, transcription, result);
 
       bbbGW.publish(JSON.stringify(payload), C.TO_AKKA_APPS_CHAN_2x);
 
@@ -229,6 +226,7 @@ const handleChannelAnswer = (channelId, callId) => {
 
 const handleChannelHangup = (channelId, callId) => {
   Logger.info(`FS: channel hangup ${channelId} ${callId}`);
+  stopAudioFork(channelId);
 }
 
 const handleFloorChanged = (roomId, newFloorMemberId) => {
@@ -237,12 +235,10 @@ const handleFloorChanged = (roomId, newFloorMemberId) => {
 
 const handleStartTalking = (channelId, userId) => {
   Logger.info(`FS: Start talking ${channelId} userId: ${userId}`);
-  startAudioFork(channelId, userId);
 }
 
 const handleStopTalking = (channelId, userId) => {
   Logger.info(`FS: Stop Talking ${channelId} userId: ${userId}`);
-  stopAudioFork(channelId, userId);
 } 
 
 eslWrapper.on(EslWrapper.EVENTS.CHANNEL_ANSWER, handleChannelAnswer);
@@ -254,3 +250,16 @@ eslWrapper.on(EslWrapper.EVENTS.MUTED, handleStopTalking);
 
 eslWrapper._connect();
 
+const exitCleanup = () => {
+  Logger.info('Closing process, cleaning up.');
+
+  if (GLADIA_PROXY_PROCESS) {
+    Logger.info('Killing gladia proxy');
+    GLADIA_PROXY_PROCESS.kill('SIGINT');
+  }
+  process.exit();
+}
+
+process.on('SIGINT', exitCleanup);
+process.on('SIGQUIT', exitCleanup);
+process.on('SIGTERM', exitCleanup);

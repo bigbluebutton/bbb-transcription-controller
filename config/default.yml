@@ -40,6 +40,11 @@ gladia:
   startMessage: '{"x_gladia_key": "", "sample_rate": 0, "bit_depth": 16, "model_type": "accurate" }'
   endMessage: '{}'
   server: ws://localhost:8777
+  proxy:
+    enabled: true
+    address: "wss://api.gladia.io/audio/text/audio-transcription"
+    minPartialDuration: 3
+    languageManual: true
 
 whispering:
   startMessage: '{"config": { "sample_rate": ""} }'

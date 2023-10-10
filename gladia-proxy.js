@@ -1,20 +1,15 @@
 const http = require('http');
 const url = require('url');
+const config = require('config');
 const WebSocket = require('ws');
 
-const MIN_PARTIAL_DURATION = 3;
-const LANGUAGE_MANUAL = true;
+const MIN_PARTIAL_DURATION = config.get('gladia.proxy.minPartialDuration');
+const LANGUAGE_MANUAL = config.get('gladia.proxy.languageManual');
 
-function tryParseJson(str) {
-  try {
-    return JSON.parse(str);
-  } catch (ex) {
-    return {};
-  }
-}
+const { tryParseJSON } = require('./lib/utils');
 
 // Create a new WebSocket connection to the external URL for each client
-const externalUrl = 'wss://api.gladia.io/audio/text/audio-transcription';
+const externalUrl = config.get('gladia.proxy.address')
 
 const server = http.createServer();
 const wss = new WebSocket.Server({ server });
@@ -25,7 +20,7 @@ function heartbeat() {
 
 const fixInitialMessage = (message) => {
   const locales = {'en': 'english', 'es': 'spanish', 'fr': 'french', 'pt': 'portuguese'};
-  const obj = tryParseJson(message);
+  const obj = tryParseJSON(message);
 
   // If message has a language field either correct the name or remove it
   if (obj.language) {
@@ -40,7 +35,7 @@ const fixInitialMessage = (message) => {
 }
 
 const fixResultMessage = (message) => {
-  const obj = tryParseJson(message);
+  const obj = tryParseJSON(message);
   const newMsg = {};
 
   if (obj.type) {
