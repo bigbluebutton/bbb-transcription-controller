@@ -39,7 +39,7 @@ const BigBlueButtonGW = require('./lib/bbb-gw');
 const bbbGW = new BigBlueButtonGW();
 
 const socketStatus = {};
-const socketIsStopping = {};
+const userChannels = {};
 
 const REDIS_CHANNEL = config.get('redis.publishChannel')
 
@@ -54,8 +54,18 @@ bbbGW.on('UserSpeechLocaleChangedEvtMsg', (header, payload) => {
 
   Logger.info("Speech changed " + userId + ' ' + provider + ' ' + locale);
 
-  setProvider(userId, provider);
-  setUserLocale(userId, locale);
+  setProvider(userId, provider, () => {
+    setUserLocale(userId, locale, () => {
+
+      let channelId = userChannels[userId];
+      if (channelId && socketStatus[channelId]) {
+        stopAudioFork(channelId);
+        setTimeout(() => {
+          startAudioFork(channelId, userId);
+        }, 1000);
+      }
+    });
+  });
 });
 
 const REDIS_VOICE_ID_KEY = 'bbb-transcription-manager_voiceToMeeting';
@@ -138,6 +148,8 @@ const makeMessage = (meetingId, userId, locale, transcript, result) => {
 };
 
 const startAudioFork = (channelId, userId) => {
+  Logger.info(`Start mod_audio_fork connection ${channelId} ${userId}`);
+
   getServerUrl(userId, (serverUrl, provider, language) => {
     if (!serverUrl) {
       Logger.warn("No provider set, not transcribing");
@@ -155,41 +167,32 @@ const startAudioFork = (channelId, userId) => {
       initialMessage.language = language.slice(0,2);
     }
 
-    if (socketIsStopping[channelId]) {
-      socketIsStopping[channelId] = false;
-    }
-
     if (!socketStatus[channelId]) {
       eslWrapper._executeCommand(`uuid_audio_fork ${channelId} start ${serverUrl} mono ${SAMPLE_RATE}k ${JSON.stringify(initialMessage)}`);
       socketStatus[channelId] = true;
+      userChannels[userId] = channelId;
     }
   });
 };
 
-const stopAudioFork = (channelId, userId) => {
-    const endMessage = JSON.parse(config.get('vosk.endMessage'));
+const stopAudioFork = (channelId) => {
+  Logger.info(`Stop mod_audio_fork connection ${channelId}`);
+  const endMessage = JSON.parse(config.get('vosk.endMessage'));
 
-    if (socketStatus[channelId]) {
-      if (!socketIsStopping[channelId]) {
-        socketIsStopping[channelId] = true;
-      } else {
-        eslWrapper._executeCommand(`uuid_audio_fork ${channelId} stop ${JSON.stringify(endMessage)}`);
-
-        socketStatus[channelId] = false;
-        socketIsStopping[channelId] = false;
-      }
+  if (socketStatus[channelId]) {
+    try{
+      eslWrapper._executeCommand(`uuid_audio_fork ${channelId} stop ${JSON.stringify(endMessage)}`);
+    } catch (e) {
+      logger.error("Socket already closed");
     }
+    socketStatus[channelId] = false;
+  }
 };
 
-let prev_transcription = '';
-eslWrapper.onModAudioForkJSON((msg) => {
-  const channelId = msg.getHeader('Channel-Call-UUID')
+eslWrapper.onModAudioForkJSON((msg, channelId, userId) => {
 
   getVoiceToMeeting(msg.getHeader('variable_conference_name'), (err, meetingId) => {
-
-    const userId = msg.getHeader('Caller-Username').split('_').slice(0,2).join('_');
     getUserLocale(userId, (err, locale) => {
-      const ignore = [ '', 'the']
 
       const body = tryParseJSON(msg.body);
       const transcription = body.text || body.partial;
@@ -199,33 +202,20 @@ eslWrapper.onModAudioForkJSON((msg) => {
         return;
       }
 
-      if ((ignore.includes(transcription) || transcription == prev_transcription) && !body.text) {
-        return;
-      }
-
       if (body.text) {
         Logger.info(`Final text is: ${body.text}`);
       }
 
-      prev_transcription = transcription;
       const result = Boolean(body.text);
       const payload = makeMessage(meetingId, userId, body.locale || locale, transcription, result);
 
       bbbGW.publish(JSON.stringify(payload), C.TO_AKKA_APPS_CHAN_2x);
-
-      if (socketIsStopping[channelId] && result) {
-        stopAudioFork(channelId);
-      }
     });
   });
 });
 
 eslWrapper.onModAudioForkDisconnect((msg, channelId, userId) => {
   Logger.info(`mod_audio_fork connection dropped ${channelId} ${userId}`);
-
-  socketStatus[channelId] = false;
-  socketIsStopping[channelId] = false;
-  setTimeout(() => { startAudioFork(channelId, userId) }, 2000);
 });
 
 const handleChannelAnswer = (channelId, callId, userId) => {
@@ -266,7 +256,7 @@ const exitCleanup = () => {
     Logger.info('Killing gladia proxy');
     GLADIA_PROXY_PROCESS.kill('SIGINT');
   }
-  process.exit();
+  setTimeout(() => process.exit(), 1000);
 }
 
 process.on('SIGINT', exitCleanup);
