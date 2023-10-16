@@ -38,6 +38,12 @@ const fixResultMessage = (message) => {
   const obj = tryParseJSON(message);
   const newMsg = {};
 
+  if (obj.event == 'transcript' && !obj.transcription) {
+    // skip
+  } else {
+    console.log('Received message from external server: %s', message);
+  }
+
   if (obj.type) {
     if (obj.type == "partial" && obj.duration >= MIN_PARTIAL_DURATION) {
       newMsg.partial = obj.transcription;
@@ -50,7 +56,6 @@ const fixResultMessage = (message) => {
       return null;
     }
   } else {
-    console.error(obj);
     return null;
   }
 
@@ -75,7 +80,7 @@ wss.on('connection', function connection(ws, req) {
         if (ws.firstMessage) {
             ws.firstMessage = false;
             message = fixInitialMessage(message);
-            console.log('received: %s', message);
+            console.log('received first message: %s', message);
         } else {
             message = JSON.stringify({ "frames": message.toString('base64') });
         }
@@ -102,8 +107,6 @@ wss.on('connection', function connection(ws, req) {
     // Handle messages from the external WebSocket server for the specific client
     ws.externalWs.on('message', function incoming(message) {
         // Process the message from the external WebSocket
-        console.log('Received message from external server: %s', message);
-
         // Reply to the specific client WebSocket
         if (ws.readyState === WebSocket.OPEN) {
           let newMsg = fixResultMessage(message);
