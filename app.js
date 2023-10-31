@@ -68,6 +68,16 @@ bbbGW.on('UserSpeechLocaleChangedEvtMsg', (header, payload) => {
   });
 });
 
+bbbGW.on('UserSpeechOptionsChangedEvtMsg', (header, payload) => {
+  const { meetingId, userId } = header;
+  const { partialUtterances, minUtteranceLength } = payload;
+
+  Logger.info("User speech options changed " + ' ' + meetingId + ' ' + userId + ' ' + partialUtterances + ' ' + minUtteranceLength);
+
+  setUserPartialUtterance(userId, partialUtterances);
+  setUserMinUtteranceLength(userId, minUtteranceLength);
+});
+
 const REDIS_VOICE_ID_KEY = 'bbb-transcription-manager_voiceToMeeting';
 const getVoiceToMeeting = (voiceConf, cb) => {
   bbbGW.getKey(REDIS_VOICE_ID_KEY + '_' + voiceConf, cb);
@@ -84,6 +94,26 @@ const getUserLocale = (userId, cb) => {
 
 const setUserLocale = (userId, locale, cb) => {
   bbbGW.setKey(REDIS_USER_LOCALE_KEY + '_' + userId, locale, cb);
+};
+
+const REDIS_USER_PARTIAL_UTTERANCE_KEY = 'bbb-transcription-manager_partial_utterance';
+const getUserPartialUtterance = (userId, cb) => {
+  bbbGW.getKey(REDIS_USER_PARTIAL_UTTERANCE_KEY + '_' + userId, cb);
+};
+
+const setUserPartialUtterance = (userId, partialUtterance, cb) => {
+  console.log(partialUtterance, 'partialUtt');
+  bbbGW.setKey(REDIS_USER_PARTIAL_UTTERANCE_KEY + '_' + userId, partialUtterance, cb);
+};
+
+const REDIS_USER_MIN_UTTERANCE_LENGTH_KEY = 'bbb-transcription-manager_min_utterance_length';
+const getUserMinUtteranceLength = (userId, cb) => {
+  bbbGW.getKey(REDIS_USER_MIN_UTTERANCE_LENGTH_KEY + '_' + userId, cb);
+};
+
+const setUserMinUtteranceLength = (userId, minUtteranceLength, cb) => {
+  console.log(minUtteranceLength, 'minUt');
+  bbbGW.setKey(REDIS_USER_MIN_UTTERANCE_LENGTH_KEY + '_' + userId, minUtteranceLength, cb);
 };
 
 const REDIS_TRANSCRIPTION_PROVIDER_KEY = 'bbb-transcription-manager_provider';
@@ -151,27 +181,34 @@ const startAudioFork = (channelId, userId) => {
   Logger.info(`Start mod_audio_fork connection ${channelId} ${userId}`);
 
   getServerUrl(userId, (serverUrl, provider, language) => {
-    if (!serverUrl) {
-      Logger.warn("No provider set, not transcribing");
-      return;
-    }
+    getUserPartialUtterance(userId, (err, partialUtterances) => {
+      getUserMinUtteranceLength(userId, (err, minUtteranceLength) => {
 
-    const initialMessage = JSON.parse(config.get(provider + '.startMessage'));
+        if (!serverUrl) {
+          Logger.warn("No provider set, not transcribing");
+          return;
+        }
 
-    if (provider === 'vosk') {
-      initialMessage.config.sample_rate = SAMPLE_RATE + '000';
-    }
+        const initialMessage = JSON.parse(config.get(provider + '.startMessage'));
 
-    if (provider === 'gladia') {
-      initialMessage.sample_rate = parseInt(SAMPLE_RATE + '000')
-      initialMessage.language = language.slice(0,2);
-    }
+        if (provider === 'vosk') {
+          initialMessage.config.sample_rate = SAMPLE_RATE + '000';
+        }
 
-    if (!socketStatus[channelId]) {
-      eslWrapper._executeCommand(`uuid_audio_fork ${channelId} start ${serverUrl} mono ${SAMPLE_RATE}k ${JSON.stringify(initialMessage)}`);
-      socketStatus[channelId] = true;
-      userChannels[userId] = channelId;
-    }
+        if (provider === 'gladia') {
+          initialMessage.sample_rate = parseInt(SAMPLE_RATE + '000')
+          initialMessage.language = language.slice(0,2);
+          initialMessage.partialUtterances = partialUtterances;
+          initialMessage.minUtteranceLength = minUtteranceLength;
+        }
+
+        if (!socketStatus[channelId]) {
+          eslWrapper._executeCommand(`uuid_audio_fork ${channelId} start ${serverUrl} mono ${SAMPLE_RATE}k ${JSON.stringify(initialMessage)}`);
+          socketStatus[channelId] = true;
+          userChannels[userId] = channelId;
+        }
+      });
+    });
   });
 };
 

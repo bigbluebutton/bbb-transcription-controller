@@ -3,9 +3,6 @@ const url = require('url');
 const config = require('config');
 const WebSocket = require('ws');
 
-const MIN_PARTIAL_DURATION = config.get('gladia.proxy.minPartialDuration');
-const LANGUAGE_MANUAL = config.get('gladia.proxy.languageManual');
-
 const { tryParseJSON } = require('./lib/utils');
 
 // Create a new WebSocket connection to the external URL for each client
@@ -18,23 +15,27 @@ function heartbeat() {
   this.isAlive = true;
 }
 
-const fixInitialMessage = (message) => {
+const fixInitialMessage = (message, ws) => {
   const locales = {'en': 'english', 'es': 'spanish', 'fr': 'french', 'pt': 'portuguese'};
   const obj = tryParseJSON(message);
 
+  ws.partialUtterances = obj.partialUtterances == "true" ? true : false;
+  ws.minUtteranceLength = parseInt(obj.minUtteranceLength);
+
+  delete obj.partialUtterances;
+  delete obj.minUtteranceLength;
+
   // If message has a language field either correct the name or remove it
-  if (obj.language) {
-    if (LANGUAGE_MANUAL) {
-      obj.language = locales[obj.language];
-    } else {
-      delete obj.language;
-    }
+  if (obj.language && obj.language != 'auto') {
+    obj.language = locales[obj.language];
+  } else {
+    delete obj.language;
   }
 
   return JSON.stringify(obj);
 }
 
-const fixResultMessage = (message) => {
+const fixResultMessage = (message, partialUtterances, minUtteranceLength) => {
   const obj = tryParseJSON(message);
   const newMsg = {};
 
@@ -45,7 +46,7 @@ const fixResultMessage = (message) => {
   }
 
   if (obj.type) {
-    if (obj.type == "partial" && obj.duration >= MIN_PARTIAL_DURATION) {
+    if ((obj.type == "partial" && partialUtterances) && obj.duration >= minUtteranceLength) {
       newMsg.partial = obj.transcription;
       newMsg.locale = obj.language;
     } else if(obj.type == "final") {
@@ -79,7 +80,9 @@ wss.on('connection', function connection(ws, req) {
     ws.on('message', function incoming(message) {
         if (ws.firstMessage) {
             ws.firstMessage = false;
-            message = fixInitialMessage(message);
+
+            message = fixInitialMessage(message, ws);
+
             console.log('received first message: %s', message);
         } else {
             message = JSON.stringify({ "frames": message.toString('base64') });
@@ -109,7 +112,7 @@ wss.on('connection', function connection(ws, req) {
         // Process the message from the external WebSocket
         // Reply to the specific client WebSocket
         if (ws.readyState === WebSocket.OPEN) {
-          let newMsg = fixResultMessage(message);
+          let newMsg = fixResultMessage(message, ws.partialUtterances, ws.minUtteranceLength);
           if (newMsg) {
             ws.send(newMsg);
           }
