@@ -74,8 +74,19 @@ bbbGW.on('UserSpeechOptionsChangedEvtMsg', (header, payload) => {
 
   Logger.info("User speech options changed " + ' ' + meetingId + ' ' + userId + ' ' + partialUtterances + ' ' + minUtteranceLength);
 
-  setUserPartialUtterance(userId, partialUtterances);
-  setUserMinUtteranceLength(userId, minUtteranceLength);
+  setUserPartialUtterance(userId, partialUtterances, () => {
+    setUserMinUtteranceLength(userId, minUtteranceLength, () => {
+
+      let channelId = userChannels[userId];
+      if (channelId && socketStatus[channelId]) {
+        stopAudioFork(channelId);
+        setTimeout(() => {
+          startAudioFork(channelId, userId);
+        }, 1000);
+      }
+
+    });
+  });
 });
 
 const REDIS_VOICE_ID_KEY = 'bbb-transcription-manager_voiceToMeeting';
