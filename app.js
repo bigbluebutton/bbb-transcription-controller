@@ -113,7 +113,6 @@ const getUserPartialUtterance = (userId, cb) => {
 };
 
 const setUserPartialUtterance = (userId, partialUtterance, cb) => {
-  console.log(partialUtterance, 'partialUtt');
   bbbGW.setKey(REDIS_USER_PARTIAL_UTTERANCE_KEY + '_' + userId, partialUtterance, cb);
 };
 
@@ -123,7 +122,6 @@ const getUserMinUtteranceLength = (userId, cb) => {
 };
 
 const setUserMinUtteranceLength = (userId, minUtteranceLength, cb) => {
-  console.log(minUtteranceLength, 'minUt');
   bbbGW.setKey(REDIS_USER_MIN_UTTERANCE_LENGTH_KEY + '_' + userId, minUtteranceLength, cb);
 };
 
