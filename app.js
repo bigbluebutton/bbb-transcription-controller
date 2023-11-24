@@ -8,7 +8,7 @@ const fs = require('fs');
 
 let GLADIA_PROXY_PROCESS;
 const runGladiaProxy = () => {
-  const outputFile = 'gladia-proxy.log';
+  const outputFile = config.get('log.gladiaProxy');
 
   const outputStream = fs.createWriteStream(outputFile);
 

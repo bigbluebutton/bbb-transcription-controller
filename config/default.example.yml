@@ -2,6 +2,7 @@ log:
   filename: log
   level: info
   stdout: true
+  gladiaProxy: gladia-proxy.log
 
 redis:
   host: 0.0.0.0
@@ -37,7 +38,7 @@ vosk:
 # the start/end messages right
 
 gladia:
-  startMessage: '{"x_gladia_key": "", "sample_rate": 0, "bit_depth": 16, "model_type": "accurate" }'
+  startMessage: '{"x_gladia_key": "", "sample_rate": 0, "bit_depth": 16, "model_type": "fast", "endpointing": 300 }'
   endMessage: '{}'
   server: ws://localhost:8777
   proxy:
