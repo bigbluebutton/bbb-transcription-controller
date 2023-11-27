@@ -31,7 +31,7 @@ const fixInitialMessage = (message, ws) => {
   return JSON.stringify(obj);
 }
 
-const fixResultMessage = (message, partialUtterances, minUtteranceLength) => {
+const fixResultMessage = (message, partialUtterances, minUtteranceLength, openTime) => {
   const obj = tryParseJSON(message);
   const newMsg = {};
 
@@ -56,6 +56,9 @@ const fixResultMessage = (message, partialUtterances, minUtteranceLength) => {
     return null;
   }
 
+  newMsg.time_begin = Math.floor(openTime + obj.time_begin);
+  newMsg.time_end = Math.floor(openTime + obj.time_end);
+
   return JSON.stringify(newMsg);
 }
 
@@ -64,6 +67,7 @@ wss.on('connection', function connection(ws, req) {
   const queue = [];
 
   ws.firstMessage = true;
+  ws.openTime = new Date().getTime() / 1000;
   ws.on('open', function open(s) {
     ws.lastMessage = null;
     console.log('New mod_audio_fork connection');
@@ -118,7 +122,7 @@ const connectExternal = (queue, proxyWs) => {
     // Process the message from the external WebSocket
     // Reply to the specific client WebSocket
     if (proxyWs.readyState === WebSocket.OPEN) {
-      let newMsg = fixResultMessage(message, proxyWs.partialUtterances, proxyWs.minUtteranceLength);
+      let newMsg = fixResultMessage(message, proxyWs.partialUtterances, proxyWs.minUtteranceLength, proxyWs.openTime);
       if (newMsg) {
         proxyWs.send(newMsg);
       }
