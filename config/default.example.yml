@@ -2,7 +2,7 @@ log:
   filename: log
   level: info
   stdout: true
-  gladiaProxy: gladia-proxy.log
+  gladiaProxy: /var/log/bigbluebutton/gladia-proxy.log
 
 redis:
   host: 0.0.0.0
