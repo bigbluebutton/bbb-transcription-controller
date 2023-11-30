@@ -1,6 +1,6 @@
 {
   "name": "bbb-transcription-controller",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "BigBlueButton's Transcription Controller",
   "engines": {
     "node": ">=16"
@@ -15,6 +15,7 @@
   "keywords": [
     "bigbluebutton",
     "cc",
+    "gladia",
     "transcription",
     "vosk"
   ],
