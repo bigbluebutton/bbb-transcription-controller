@@ -6,6 +6,9 @@ const config = require('config');
 const { fork } = require('child_process');
 const fs = require('fs');
 
+const DISCONNECT_ON_SILENCE = config.disconnectOnSilence;
+const CLOSE_CONNECTION_AFTER_SECONDS = config.closeConnectionAfterSeconds;
+
 let GLADIA_PROXY_PROCESS;
 const runGladiaProxy = () => {
   const outputFile = config.get('log.gladiaProxy');
@@ -40,6 +43,7 @@ const bbbGW = new BigBlueButtonGW();
 
 const socketStatus = {};
 const userChannels = {};
+const stopTimeouts = {};
 
 const REDIS_CHANNEL = config.get('redis.publishChannel')
 
@@ -298,7 +302,9 @@ eslWrapper.onModAudioForkDisconnect((msg, channelId, userId) => {
 
 const handleChannelAnswer = (channelId, callId, userId) => {
   Logger.info(`FS: Associating channel ${channelId} ${callId} userId: ${userId}`);
-  startAudioFork(channelId, userId);
+  if (!DISCONNECT_ON_SILENCE) {
+    startAudioFork(channelId, userId);
+  }
 }
 
 const handleChannelHangup = (channelId, callId) => {
@@ -312,10 +318,33 @@ const handleFloorChanged = (roomId, newFloorMemberId) => {
 
 const handleStartTalking = (channelId, userId) => {
   Logger.info(`FS: Start talking ${channelId} userId: ${userId}`);
+
+  if (DISCONNECT_ON_SILENCE) {
+    if (stopTimeouts[channelId]) {
+      Logger.debug(`Cancelled stop for channelId: ${channelId}`);
+      clearTimeout(stopTimeouts[channelId]);
+      delete stopTimeouts[channelId];
+    } else {
+      startAudioFork(channelId, userId);
+    }
+  }
 }
 
 const handleStopTalking = (channelId, userId) => {
   Logger.info(`FS: Stop Talking ${channelId} userId: ${userId}`);
+
+  if (DISCONNECT_ON_SILENCE) {
+    if (stopTimeouts[channelId]) {
+      Logger.debug(`Already stopping for channelId=${channelId}`);
+      return;
+    };
+
+    stopTimeouts[channelId] = setTimeout(() => {
+      Logger.debug(`Actually stopping audio fork for channelId=${channelId}`);
+      stopAudioFork(channelId);
+      delete stopTimeouts[channelId];
+    }, CLOSE_CONNECTION_AFTER_SECONDS * 1000);
+  }
 } 
 
 eslWrapper.on(EslWrapper.EVENTS.CHANNEL_ANSWER, handleChannelAnswer);

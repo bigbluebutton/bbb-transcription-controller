@@ -12,6 +12,15 @@ redis:
 
 includePartialResults: true
 
+# If set to false connection to the transcription provider will be kept open from
+# the call start to the call hangup. Otherwise it will be opened/closed whenever a
+# user start/stops talking. Setting to true might yield lower quality results
+disconnectOnSilence: false
+# If disconnectOnSilence is true we'll wait this time in seconds
+# before closing the connection. If this is too low we might have too much
+# connections/disconnections and final results might be cut too short
+closeConnectionAfterSeconds: 10
+
 # in mhz
 # Valid values are '16' and '8', but 8 seems to be
 # too low to get accurate transcriptions
