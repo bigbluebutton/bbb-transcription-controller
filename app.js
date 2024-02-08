@@ -186,6 +186,32 @@ const makeMessage = (meetingId, userId, locale, transcript, result, start = 0, e
   };
 };
 
+const makeErrorMessage = (body, meetingId, userId) => {
+  const name = 'TranscriptionProviderErrorMsg';
+  return {
+    envelope: {
+      name,
+      routing: {
+        meetingId,
+        userId,
+      },
+      timestamp: Date.now(),
+    },
+    core: {
+      header: {
+        name,
+        meetingId,
+        userId,
+      },
+      body: {
+        errorCode: body.errorCode,
+        errorMessage: body.errorMessage
+      },
+    }
+  };
+}
+
+
 const startAudioFork = (channelId, userId) => {
   Logger.info(`Start mod_audio_fork connection ${channelId} ${userId}`);
 
@@ -229,7 +255,7 @@ const stopAudioFork = (channelId) => {
     try{
       eslWrapper._executeCommand(`uuid_audio_fork ${channelId} stop ${JSON.stringify(endMessage)}`);
     } catch (e) {
-      logger.error("Socket already closed");
+      Logger.error("Socket already closed");
     }
     socketStatus[channelId] = false;
   }
@@ -242,6 +268,12 @@ eslWrapper.onModAudioForkJSON((msg, channelId, userId) => {
 
       const body = tryParseJSON(msg.body);
       const transcription = body.text || body.partial;
+
+      if (body.errorCode) {
+        Logger.error("Transcription error", body);
+        const msg = makeErrorMessage(body, meetingId, userId);
+        return bbbGW.publish(JSON.stringify(msg), C.TO_AKKA_APPS_CHAN_2x);
+      }
 
       if (body.partial && !INCLUDE_PARTIAL_RESULTS) {
         Logger.debug('Discard partial utterance', body.partial);

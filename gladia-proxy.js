@@ -131,6 +131,11 @@ const connectExternal = (queue, proxyWs) => {
 
   ws.on('close', function(code) {
     console.log("gladia has closed the connection", code);
+    if (code >= 4000) {
+      console.log("Gladia internal error");
+      return proxyWs.send(JSON.stringify({errorCode: code, errorMessage: 'Gladia internal error'}));
+    }
+
     if (code != 1000) {
       proxyWs.externalWs = connectExternal(queue, proxyWs);
     }
