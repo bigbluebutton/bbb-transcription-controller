@@ -3,7 +3,7 @@ const url = require('url');
 const config = require('config');
 const WebSocket = require('ws');
 
-const { tryParseJSON } = require('./lib/utils');
+const { tryParseJSON, getLanguageName } = require('./lib/utils');
 
 // Create a new WebSocket connection to the external URL for each client
 const externalUrl = config.get('gladia.proxy.address')
@@ -12,7 +12,6 @@ const server = http.createServer();
 const wss = new WebSocket.Server({ server });
 
 const fixInitialMessage = (message, ws) => {
-  const locales = {'en': 'english', 'es': 'spanish', 'fr': 'french', 'pt': 'portuguese'};
   const obj = tryParseJSON(message);
 
   ws.partialUtterances = obj.partialUtterances == "true" ? true : false;
@@ -23,7 +22,7 @@ const fixInitialMessage = (message, ws) => {
 
   // If message has a language field either correct the name or remove it
   if (obj.language && obj.language != 'auto') {
-    obj.language = locales[obj.language];
+    obj.language = getLanguageName(obj.language);
   } else {
     delete obj.language;
   }
