@@ -56,6 +56,11 @@ bbbGW.on('UserSpeechLocaleChangedEvtMsg', (header, payload) => {
   const { meetingId, userId } = header;
   const { provider, locale } = payload;
 
+  if (!['gladia', 'vosk'].includes(provider)) {
+    Logger.warn("Speech not changed, invalid provider " + userId + ' ' + provider + ' ' + locale);
+    return;
+  }
+
   Logger.info("Speech changed " + userId + ' ' + provider + ' ' + locale);
 
   setProvider(userId, provider, () => {
@@ -236,7 +241,7 @@ const startAudioFork = (channelId, userId) => {
 
         if (provider === 'gladia') {
           initialMessage.sample_rate = parseInt(SAMPLE_RATE + '000')
-          initialMessage.language = language.slice(0,2);
+          initialMessage.language = language == 'auto' ? language : language.slice(0,2);
           initialMessage.partialUtterances = partialUtterances;
           initialMessage.minUtteranceLength = minUtteranceLength;
         }
