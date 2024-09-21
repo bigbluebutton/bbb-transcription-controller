@@ -49,7 +49,7 @@ vosk:
 gladia:
   startMessage: '{"x_gladia_key": "", "sample_rate": 0, "bit_depth": 16, "model_type": "fast", "endpointing": 300 }'
   endMessage: '{}'
-  # Provides a custom vocabulary to the model to improve accuracy of transcribing context specific words, technical terms, names, etc.
+  # Provide a custom vocabulary to the model to improve accuracy of transcribing context specific words, technical terms, names, etc.
   # If empty, this argument is ignored. Please be aware that this field has a character limit of 600. 
   hint: ''
   server: ws://localhost:8777
