@@ -244,6 +244,7 @@ const startAudioFork = (channelId, userId) => {
           initialMessage.language = language == 'auto' ? language : language.slice(0,2);
           initialMessage.partialUtterances = partialUtterances;
           initialMessage.minUtteranceLength = minUtteranceLength;
+          initialMessage.transcription_hint = config.get(provider + '.hint');
         }
 
         if (!socketStatus[channelId]) {
