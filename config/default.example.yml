@@ -49,6 +49,7 @@ vosk:
 gladia:
   startMessage: '{"x_gladia_key": "", "sample_rate": 0, "bit_depth": 16, "model_type": "fast", "endpointing": 300 }'
   endMessage: '{}'
+  hint: ''
   server: ws://localhost:8777
   proxy:
     enabled: true
