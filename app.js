@@ -56,7 +56,7 @@ bbbGW.on('UserSpeechLocaleChangedEvtMsg', (header, payload) => {
   const { meetingId, userId } = header;
   const { provider, locale } = payload;
 
-  if (!['gladia', 'vosk'].includes(provider)) {
+  if (!['gladia', 'vosk', ''].includes(provider)) {
     Logger.warn("Speech not changed, invalid provider " + userId + ' ' + provider + ' ' + locale);
     return;
   }
