@@ -262,7 +262,7 @@ const stopAudioFork = (channelId) => {
   const endMessage = JSON.parse(config.get('vosk.endMessage'));
 
   if (socketStatus[channelId]) {
-    try{
+    try {
       eslWrapper._executeCommand(`uuid_audio_fork ${channelId} stop ${JSON.stringify(endMessage)}`);
     } catch (e) {
       Logger.error("Socket already closed");
@@ -330,9 +330,9 @@ const handleStartTalking = (channelId, userId) => {
       Logger.debug(`Cancelled stop for channelId: ${channelId}`);
       clearTimeout(stopTimeouts[channelId]);
       delete stopTimeouts[channelId];
-    } else {
-      startAudioFork(channelId, userId);
     }
+  } else {
+    startAudioFork(channelId, userId);
   }
 }
 
@@ -351,7 +351,7 @@ const handleStopTalking = (channelId, userId) => {
       delete stopTimeouts[channelId];
     }, CLOSE_CONNECTION_AFTER_SECONDS * 1000);
   }
-} 
+}
 
 eslWrapper.on(EslWrapper.EVENTS.CHANNEL_ANSWER, handleChannelAnswer);
 eslWrapper.on(EslWrapper.EVENTS.CHANNEL_HANGUP, handleChannelHangup);
