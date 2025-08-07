@@ -9,6 +9,8 @@ const fs = require('fs');
 const DISCONNECT_ON_SILENCE = config.disconnectOnSilence;
 const CLOSE_CONNECTION_AFTER_SECONDS = config.closeConnectionAfterSeconds;
 
+const { shortLocaleToLong } = require('./lib/utils');
+
 let GLADIA_PROXY_PROCESS;
 const runGladiaProxy = () => {
   const outputFile = config.get('log.gladiaProxy');
@@ -33,7 +35,7 @@ if (config.get('gladia.proxy.enabled')) {
   runGladiaProxy();
 }
 
-const { tryParseJSON }  = require('./lib/utils');
+const { tryParseJSON } = require('./lib/utils');
 
 const EventEmitter = require('events').EventEmitter;
 const C = require('./lib/Constants');
@@ -183,7 +185,7 @@ const makeMessage = (meetingId, userId, locale, transcript, result, start = 0, e
         userId,
       },
       body: {
-        transcriptId: userId + '-'+ start,
+        transcriptId: userId + '-' + locale + '-' + start,
         start: start.toString(),
         end: end.toString(),
         text: '',
@@ -241,7 +243,7 @@ const startAudioFork = (channelId, userId) => {
 
         if (provider === 'gladia') {
           initialMessage.sample_rate = parseInt(SAMPLE_RATE + '000')
-          initialMessage.language = language == 'auto' ? language : language.slice(0,2);
+          initialMessage.language = language == 'auto' ? language : language.slice(0, 2);
           initialMessage.partialUtterances = partialUtterances;
           initialMessage.minUtteranceLength = minUtteranceLength;
           initialMessage.transcription_hint = config.get(provider + '.hint');
@@ -295,7 +297,7 @@ eslWrapper.onModAudioForkJSON((msg, channelId, userId) => {
       }
 
       const result = Boolean(body.text);
-      const payload = makeMessage(meetingId, userId, body.locale || locale, transcription, result, body.time_begin, body.time_end);
+      const payload = makeMessage(meetingId, userId, shortLocaleToLong(body.locale) || locale, transcription, result, body.time_begin, body.time_end);
 
       bbbGW.publish(JSON.stringify(payload), C.TO_AKKA_APPS_CHAN_2x);
     });
