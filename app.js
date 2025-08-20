@@ -253,6 +253,8 @@ const startAudioFork = (channelId, userId) => {
           eslWrapper._executeCommand(`uuid_audio_fork ${channelId} start ${serverUrl} mono ${SAMPLE_RATE}k ${JSON.stringify(initialMessage)}`);
           socketStatus[channelId] = true;
           userChannels[userId] = channelId;
+        } else {
+          Logger.info("Connection already opened, skipping");
         }
       });
     });
@@ -333,7 +335,6 @@ const handleStartTalking = (channelId, userId) => {
       clearTimeout(stopTimeouts[channelId]);
       delete stopTimeouts[channelId];
     }
-  } else {
     startAudioFork(channelId, userId);
   }
 }
