@@ -5,13 +5,14 @@ const WebSocket = require('ws');
 
 const API_URL = config.get('gladia.apiUrl');
 const API_KEY = config.get('gladia.key');
-const MIN_CONFIDENCE = config.get('gladia.proxy.minConfidence');
+const MIN_CONFIDENCE = config.get('gladia.minConfidence');
 const BIT_DEPTH = config.get('gladia.bitDepth');
-const SAMPLE_RATE = config.get('gladia.sampleRate');
 const MODEL_TYPE = config.get('gladia.modelType');
 const ENDPOINTING = config.get('gladia.endpointing');
+const MAX_BEFORE_ENDPOINTING = config.get('gladia.maxBeforeEndpointing');
 const TRANSLATION_ENABLED = config.get('gladia.translation.enabled');
 const TRANSLATION_LANGUAGES = config.get('gladia.translation.languages');
+const TRANSLATION_MIN_CONFIDENCE = config.get('gladia.translation.minConfidence');
 
 const { tryParseJSON, getLanguageName } = require('./lib/utils');
 
@@ -30,9 +31,7 @@ const fixInitialMessage = (message, ws) => {
 
   ws.partialUtterances = obj.partialUtterances == "true" ? true : false;
   ws.minUtteranceLength = parseInt(obj.minUtteranceLength);
-
-  delete obj.partialUtterances;
-  delete obj.minUtteranceLength;
+  ws.sampleRate = parseInt(obj.sample_rate);
 
   // If message has a language field either correct the name or remove it
   if (obj.language == 'auto') {
@@ -68,7 +67,7 @@ const fixResultMessage = (message, partialUtterances, minUtteranceLength, openTi
     }
   } else if (obj?.type == "translation") {
     const { data } = obj;
-    if (obj?.data?.utterance && obj.data.utterance.confidence < MIN_CONFIDENCE) {
+    if (obj?.data?.utterance && obj.data.utterance.confidence < TRANSLATION_MIN_CONFIDENCE) {
       console.log("Skipped translation because of low confidence", obj.data.utterance.confidence, "<", MIN_CONFIDENCE);
       return
     }
@@ -128,7 +127,7 @@ wss.on('connection', async (ws, req) => {
 
 });
 
-const getApiEndpoint = async (language) => {
+const getApiEndpoint = async (language, sampleRate, partialUtterances) => {
   // Get TRANSLATION_LANGUAGES from config but remove the one
   // for this connection, it will be transcribed and not translated
   let translationLanguages = TRANSLATION_LANGUAGES.slice(0);
@@ -141,35 +140,38 @@ const getApiEndpoint = async (language) => {
     };
   }
 
+  console.log(language, sampleRate, partialUtterances);
   const options = {
-    "encoding": "wav/pcm",
-    "bit_depth": BIT_DEPTH,
-    "sample_rate": SAMPLE_RATE,
-    "channels": 1,
+    encoding: "wav/pcm",
+    bit_depth: BIT_DEPTH,
+    sample_rate: sampleRate,
+    channels: 1,
+    endpointing: ENDPOINTING,
+    maximum_duration_without_endpointing: MAX_BEFORE_ENDPOINTING,
     language_config,
-    "messages_config": {
-      "receive_partial_transcripts": true,
-      "receive_final_transcripts": true,
-      "receive_speech_events": false,
-      "receive_pre_processing_events": true,
-      "receive_realtime_processing_events": true,
-      "receive_post_processing_events": true,
-      "receive_acknowledgments": false,
-      "receive_errors": true,
+    messages_config: {
+      receive_partial_transcripts: partialUtterances,
+      receive_final_transcripts: true,
+      receive_speech_events: false,
+      receive_pre_processing_events: true,
+      receive_realtime_processing_events: true,
+      receive_post_processing_events: true,
+      receive_acknowledgments: false,
+      receive_errors: true,
     },
-    "pre_processing": {
-      "audio_enhancer": true,
+    pre_processing: {
+      audio_enhancer: true,
     },
-    "realtime_processing": {
-      "translation": TRANSLATION_ENABLED,
-      "translation_config": {
-        "target_languages": translationLanguages,
-        "model": MODEL_TYPE,
-        "match_original_utterances": true,
-        "lipsync": true,
-        "context_adaptation": false,
-        "context": "",
-        "informal": false
+    realtime_processing: {
+      translation: TRANSLATION_ENABLED,
+      translation_config: {
+        target_languages: translationLanguages,
+        model: MODEL_TYPE,
+        match_original_utterances: true,
+        lipsync: true,
+        context_adaptation: false,
+        context: "",
+        informal: false
       },
     },
   };
@@ -193,7 +195,7 @@ const getApiEndpoint = async (language) => {
 }
 
 const connectExternal = async (language, queue, proxyWs) => {
-  const url = await getApiEndpoint(language);
+  const url = await getApiEndpoint(language, proxyWs.sampleRate, proxyWs.partialUtterances);
   const ws = new WebSocket(url);
 
   console.log("connectExternal(",language, ",", typeof queue, ",", typeof proxyWs, ")");

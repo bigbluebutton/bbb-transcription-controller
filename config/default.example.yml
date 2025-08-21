@@ -47,17 +47,31 @@ vosk:
 # the start/end messages right
 
 gladia:
-  startMessage: '{"x_gladia_key": "", "sample_rate": 0, "bit_depth": 16, "model_type": "fast", "endpointing": 300 }'
-  endMessage: '{}'
-  # Provide a custom vocabulary to the model to improve accuracy of transcribing context specific words, technical terms, names, etc.
-  # If empty, this field is ignored. Please be aware of a character limit of 600. 
+  apiUrl: 'https://api.gladia.io/v2/live'
+  key: ''
+  bitDepth: 16
+  modelType: "base"
+  endpointing: 0.05
+  maxBeforeEndpointing: 5
+  # Message confidence ranges from 0 to 1, messages below minConfidence are discarded
+  minConfidence: 0.1
+  # DEPRECATED: Provide a custom vocabulary to the model to improve accuracy of transcribing context specific words, technical terms, names, etc.
+  # If empty, this field is ignored. Please be aware of a character limit of 600.
+  # We need to use the new v2 format
   hint: ''
   server: ws://localhost:8777
+  # DEPRECATED: startMessage and endMessage are deprecated for gladia
+  startMessage: '{}'
+  endMessage: '{}'
+  translation:
+    enabled: false
+    languages: ["pt", "de", "en", "fr"]
+    minConfidence: 0.1
+  # DEPRECATED: won't be needed in the future
   proxy:
     enabled: true
     address: "wss://api.gladia.io/audio/text/audio-transcription"
     minPartialDuration: 3
-    languageManual: true
 
 whispering:
   startMessage: '{"config": { "sample_rate": ""} }'

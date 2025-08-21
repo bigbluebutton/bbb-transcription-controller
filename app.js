@@ -242,6 +242,7 @@ const startAudioFork = (channelId, userId) => {
         }
 
         if (provider === 'gladia') {
+          initialMessage.sample_rate = SAMPLE_RATE + '000';
           initialMessage.language = language == 'auto' ? language : language.slice(0, 2);
           initialMessage.partialUtterances = partialUtterances;
           initialMessage.minUtteranceLength = minUtteranceLength;
