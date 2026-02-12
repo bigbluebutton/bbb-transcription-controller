@@ -131,7 +131,7 @@ const getApiEndpoint = async (language, sampleRate, partialUtterances) => {
   // Get TRANSLATION_LANGUAGES from config but remove the one
   // for this connection, it will be transcribed and not translated
   let translationLanguages = TRANSLATION_LANGUAGES.slice(0);
-  let languageConfig = undefined;
+  let language_config = undefined;
   if (language) {
     translationLanguages.splice(TRANSLATION_LANGUAGES.indexOf(language), 1);
     language_config = {
