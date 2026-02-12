@@ -1,6 +1,6 @@
 {
   "name": "bbb-transcription-controller",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "BigBlueButton's Transcription Controller",
   "engines": {
     "node": ">=16"
