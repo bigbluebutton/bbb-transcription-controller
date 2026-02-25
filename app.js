@@ -235,22 +235,29 @@ const startAudioFork = (channelId, userId) => {
           return;
         }
 
-        const initialMessage = JSON.parse(config.get(provider + '.startMessage'));
+        const startMessageRaw = config.get(provider + '.startMessage');
+        const initialMessage = tryParseJSON(typeof startMessageRaw === 'string' ? startMessageRaw : JSON.stringify(startMessageRaw)) || {};
+
+        const effectiveSampleRate = (SAMPLE_RATE != null && Number(SAMPLE_RATE) > 0) ? Number(SAMPLE_RATE) : 16;
 
         if (provider === 'vosk') {
-          initialMessage.config.sample_rate = SAMPLE_RATE + '000';
+          if (!initialMessage.config) initialMessage.config = {};
+          initialMessage.config.sample_rate = effectiveSampleRate + '000';
         }
 
         if (provider === 'gladia') {
-          initialMessage.sample_rate = SAMPLE_RATE + '000';
-          initialMessage.language = language == 'auto' ? language : language.slice(0, 2);
-          initialMessage.partialUtterances = partialUtterances;
-          initialMessage.minUtteranceLength = minUtteranceLength;
-          initialMessage.transcription_hint = config.get(provider + '.hint');
+          initialMessage.sample_rate = String(initialMessage.sample_rate || effectiveSampleRate + '000');
+          initialMessage.language = language === 'auto' ? language : (language && language.slice(0, 2)) || 'en';
+          initialMessage.partialUtterances = partialUtterances === true || String(partialUtterances) === 'true';
+          const minLen = parseInt(minUtteranceLength, 10);
+          initialMessage.minUtteranceLength = (Number.isFinite(minLen) && minLen >= 0) ? minLen : 0;
+          const hint = config.get(provider + '.hint');
+          if (hint != null && hint !== '') initialMessage.transcription_hint = hint;
         }
 
         if (!socketStatus[channelId]) {
-          eslWrapper._executeCommand(`uuid_audio_fork ${channelId} start ${serverUrl} mono ${SAMPLE_RATE}k ${JSON.stringify(initialMessage)}`);
+          Logger.info(`gladia initialMessage: ${JSON.stringify(initialMessage)}`);
+          eslWrapper._executeCommand(`uuid_audio_fork ${channelId} start ${serverUrl} mono ${effectiveSampleRate}k ${JSON.stringify(initialMessage)}`);
           socketStatus[channelId] = true;
           userChannels[userId] = channelId;
         } else {
