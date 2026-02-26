@@ -27,11 +27,13 @@ function wrapChunk(buf) {
 }
 
 const fixInitialMessage = (message, ws) => {
-  const obj = tryParseJSON(message);
+  const obj = tryParseJSON(message) || {};
 
-  ws.partialUtterances = obj.partialUtterances == "true" ? true : false;
-  ws.minUtteranceLength = parseInt(obj.minUtteranceLength);
-  ws.sampleRate = parseInt(obj.sample_rate);
+  ws.partialUtterances = obj.partialUtterances === true || String(obj.partialUtterances) === 'true';
+  const minLen = parseInt(obj.minUtteranceLength, 10);
+  ws.minUtteranceLength = Number.isFinite(minLen) && minLen >= 0 ? minLen : 0;
+  const sr = parseInt(obj.sample_rate, 10);
+  ws.sampleRate = Number.isFinite(sr) && sr > 0 ? sr : 16000; // fall back to 16000
 
   // If message has a language field either correct the name or remove it
   if (obj.language == 'auto') {
@@ -48,7 +50,7 @@ const fixResultMessage = (message, partialUtterances, minUtteranceLength, openTi
   if (obj?.type == "transcript") {
     if (obj?.data?.utterance && obj.data.utterance.confidence < MIN_CONFIDENCE) {
       console.log("Skipped transcription because of low confidence", obj.data.utterance.confidence, "<", MIN_CONFIDENCE);
-      return
+      return;
     }
 
     const { data } = obj;
@@ -68,8 +70,8 @@ const fixResultMessage = (message, partialUtterances, minUtteranceLength, openTi
   } else if (obj?.type == "translation") {
     const { data } = obj;
     if (obj?.data?.utterance && obj.data.utterance.confidence < TRANSLATION_MIN_CONFIDENCE) {
-      console.log("Skipped translation because of low confidence", obj.data.utterance.confidence, "<", MIN_CONFIDENCE);
-      return
+      console.log("Skipped translation because of low confidence", obj.data.utterance.confidence, "<", TRANSLATION_MIN_CONFIDENCE);
+      return;
     }
     newMsg.time_begin = Math.floor(openTime + obj.data.translated_utterance.start);
     newMsg.time_end = Math.floor(openTime + obj.data.translated_utterance.end);
@@ -113,7 +115,10 @@ wss.on('connection', async (ws, req) => {
       parsedMessage = tryParseJSON(message);
 
       console.log('received first message: %s', parsedMessage);
-      ws.externalWs = await connectExternal(parsedMessage.language, queue, ws);
+      if (!parsedMessage || Object.keys(parsedMessage).length === 0) {
+        console.warn('First message was empty; using defaults (language=auto, sampleRate=%s)', ws.sampleRate);
+      }
+      ws.externalWs = await connectExternal(parsedMessage?.language, queue, ws);
       return;
     }
 
@@ -131,9 +136,10 @@ const getApiEndpoint = async (language, sampleRate, partialUtterances) => {
   // Get TRANSLATION_LANGUAGES from config but remove the one
   // for this connection, it will be transcribed and not translated
   let translationLanguages = TRANSLATION_LANGUAGES.slice(0);
-  let language_config = undefined;
+  let language_config;
   if (language) {
-    translationLanguages.splice(TRANSLATION_LANGUAGES.indexOf(language), 1);
+    const idx = translationLanguages.indexOf(language);
+    if (idx !== -1) translationLanguages.splice(idx, 1);
     language_config = {
       "languages": [language],
       "code_switching": false,
@@ -175,6 +181,8 @@ const getApiEndpoint = async (language, sampleRate, partialUtterances) => {
       },
     },
   };
+  const options_str = JSON.stringify(options);
+  console.log(`Posting to Gladia with options: ${options_str}`);
 
   const response = await fetch(API_URL, {
     method: 'POST',
@@ -182,7 +190,7 @@ const getApiEndpoint = async (language, sampleRate, partialUtterances) => {
       'Content-Type': 'application/json',
       'X-Gladia-Key': API_KEY,
     },
-    body: JSON.stringify(options),
+    body: options_str,
   });
   if (!response.ok) {
     // Look at the error message
@@ -201,9 +209,7 @@ const connectExternal = async (language, queue, proxyWs) => {
   console.log("connectExternal(",language, ",", typeof queue, ",", typeof proxyWs, ")");
 
   ws.on('open', function () {
-    for (m in queue) {
-      ws.send(wrapChunk(queue.shift()));
-    }
+    while (queue.length) ws.send(wrapChunk(queue.shift()));
   });
 
   // Handle messages from the external WebSocket server for the specific client
@@ -237,7 +243,9 @@ const connectExternal = async (language, queue, proxyWs) => {
 
   ws.on('error', function (e) {
     console.log("gladia connection error", e);
-    proxyWs.externalWs = connectExternal(language, queue, proxyWs);
+    connectExternal(language, queue, proxyWs).catch((err) => {
+      console.error("Reconnect to Gladia failed", err);
+    });
   });
 
   proxyWs.externalWs = ws;
